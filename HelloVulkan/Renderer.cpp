@@ -42,6 +42,7 @@ void Renderer::InitVulkan()
 {
 	CreateInstance();
 	InitDebugCallback();
+	CreateWindowSurface();
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
 }
@@ -56,11 +57,12 @@ void Renderer::GameLoop()
 
 void Renderer::CleanUp()
 {
-	if (enableValidationLayers)
+	if (ENABLE_VALIDATION_LAYERS)
 	{
 		DestroyDebugUtilsMessengerEXT(m_vkInstance, callback, nullptr);
 	}
 
+	vkDestroySurfaceKHR(m_vkInstance, m_surface, nullptr);
 	vkDestroyInstance(m_vkInstance, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 
@@ -70,7 +72,7 @@ void Renderer::CleanUp()
 
 void Renderer::CreateInstance()
 {
-	if (enableValidationLayers && !CheckValidationLayerSupport())
+	if (ENABLE_VALIDATION_LAYERS && !CheckValidationLayerSupport())
 	{
 		throw std::runtime_error("ERROR: Validation layers requested but are not available.");
 	}
@@ -91,7 +93,7 @@ void Renderer::CreateInstance()
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
 	createInfo.ppEnabledExtensionNames = extensions.data();
 
-	if (enableValidationLayers)
+	if (ENABLE_VALIDATION_LAYERS)
 	{
 		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
 		createInfo.ppEnabledLayerNames = validationLayers.data();
@@ -109,7 +111,7 @@ void Renderer::CreateInstance()
 
 void Renderer::InitDebugCallback()
 {
-	if (!enableValidationLayers)
+	if (!ENABLE_VALIDATION_LAYERS)
 		return;
 
 	VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
@@ -132,7 +134,7 @@ std::vector<const char*> Renderer::GetRequiredExtensions()
 
 	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
-	if (enableValidationLayers) 
+	if (ENABLE_VALIDATION_LAYERS)
 	{
 		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	}
@@ -241,6 +243,14 @@ QueueFamilyIndices Renderer::FindQueueFamilies(VkPhysicalDevice device)
 			indices.graphicsFamily = index;
 		}
 
+		VkBool32 presentAvailable = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, index, m_surface, &presentAvailable);
+
+		if (queueFamily.queueCount > 0 && presentAvailable)
+		{
+			indices.presentFamily = index;
+		}
+
 		if (indices.IsComplete())
 			break;
 
@@ -254,37 +264,52 @@ void Renderer::CreateLogicalDevice()
 {
 	QueueFamilyIndices indices = FindQueueFamilies(m_physicalDevice);
 
-	VkDeviceQueueCreateInfo queueCreateInfo = {};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-	queueCreateInfo.queueCount = 1;
-	
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+	std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+
 	float queuePriority = 1.0f;
-	queueCreateInfo.pQueuePriorities = &queuePriority;
+	for (uint32_t queueFamily : uniqueQueueFamilies)
+	{
+		VkDeviceQueueCreateInfo queueCreateInfo = {};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = queueFamily;
+		queueCreateInfo.queueCount = 1;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+		queueCreateInfos.push_back(queueCreateInfo);
+	}
 
 	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
 
-	VkDeviceCreateInfo deviceCreateInfo = {};
-	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-	deviceCreateInfo.queueCreateInfoCount = 1;
-	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
-	deviceCreateInfo.enabledExtensionCount = 0;
+	VkDeviceCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.queueCreateInfoCount = queueCreateInfos.size();
+	createInfo.pQueueCreateInfos = queueCreateInfos.data();
+	createInfo.pEnabledFeatures = &physicalDeviceFeatures;
+	createInfo.enabledExtensionCount = 0;
 
-	if (enableValidationLayers)
+	if (ENABLE_VALIDATION_LAYERS)
 	{
-		deviceCreateInfo.enabledLayerCount = validationLayers.size();
-		deviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+		createInfo.enabledLayerCount = validationLayers.size();
+		createInfo.ppEnabledLayerNames = validationLayers.data();
 	}
 	else
 	{
-		deviceCreateInfo.enabledLayerCount = 0;
+		createInfo.enabledLayerCount = 0;
 	}
 
-	if (vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device) != VK_SUCCESS)
+	if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS)
 	{
 		std::runtime_error("ERROR: Unable to establish a logical device to interface with the physical device\n");
 	}
 
 	vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0, &m_presentQueue);
+}
+
+void Renderer::CreateWindowSurface()
+{
+	if (glfwCreateWindowSurface(m_vkInstance, m_pWindow, nullptr, &m_surface) != VK_SUCCESS)
+	{
+		std::runtime_error("ERROR: Failed to create window surface\n");
+	}
 }

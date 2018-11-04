@@ -10,6 +10,7 @@
 #include <cstring>
 #include <vector>
 #include <map>
+#include <set>
 
 #include "QueueFamily.h"
 
@@ -19,9 +20,9 @@ const std::vector<const char*> validationLayers =
 };
 
 #ifdef NDEBUG
-const bool enableValidationLayers = false;
+const bool ENABLE_VALIDATION_LAYERS = false;
 #else
-const bool enableValidationLayers = true;
+const bool ENABLE_VALIDATION_LAYERS = true;
 #endif
 
 class Renderer
@@ -44,7 +45,8 @@ private:
 	VkDebugUtilsMessengerEXT callback;
 	VkPhysicalDevice m_physicalDevice;
 	VkDevice m_device;
-	VkQueue m_graphicsQueue;
+	VkQueue m_graphicsQueue, m_presentQueue;
+	VkSurfaceKHR m_surface;
 
 	const int m_WIDTH = 800;
 	const int m_HEIGHT = 600;
@@ -63,6 +65,7 @@ private:
 	bool CheckDeviceCompatability(VkPhysicalDevice device);
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
 	void CreateLogicalDevice();
+	void CreateWindowSurface();
 };
 
 #endif // !__RENDERER_H__
