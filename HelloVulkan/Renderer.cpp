@@ -43,6 +43,7 @@ void Renderer::InitVulkan()
 	CreateInstance();
 	InitDebugCallback();
 	SelectPhysicalDevice();
+	CreateLogicalDevice();
 }
 
 void Renderer::GameLoop()
@@ -61,7 +62,8 @@ void Renderer::CleanUp()
 	}
 
 	vkDestroyInstance(m_vkInstance, nullptr);
-	
+	vkDestroyDevice(m_device, nullptr);
+
 	glfwDestroyWindow(m_pWindow);
 	glfwTerminate();
 }
@@ -213,9 +215,11 @@ bool Renderer::CheckDeviceCompatability(VkPhysicalDevice device)
 	std::cout << "--------------------\n";
 	std::cout << deviceProperties.deviceName << "\n";
 
-	VkPhysicalDeviceFeatures deviceFeatures;
-	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+	// For retrieving more details about the physical device
+	//VkPhysicalDeviceFeatures deviceFeatures;
+	//vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
+	// Check for available queues
 	QueueFamilyIndices indices = FindQueueFamilies(device);
 	return indices.IsComplete();
 }
@@ -244,4 +248,43 @@ QueueFamilyIndices Renderer::FindQueueFamilies(VkPhysicalDevice device)
 	}
 
 	return indices;
+}
+
+void Renderer::CreateLogicalDevice()
+{
+	QueueFamilyIndices indices = FindQueueFamilies(m_physicalDevice);
+
+	VkDeviceQueueCreateInfo queueCreateInfo = {};
+	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+	queueCreateInfo.queueCount = 1;
+	
+	float queuePriority = 1.0f;
+	queueCreateInfo.pQueuePriorities = &queuePriority;
+
+	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
+
+	VkDeviceCreateInfo deviceCreateInfo = {};
+	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+	deviceCreateInfo.queueCreateInfoCount = 1;
+	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
+	deviceCreateInfo.enabledExtensionCount = 0;
+
+	if (enableValidationLayers)
+	{
+		deviceCreateInfo.enabledLayerCount = validationLayers.size();
+		deviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+	}
+	else
+	{
+		deviceCreateInfo.enabledLayerCount = 0;
+	}
+
+	if (vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device) != VK_SUCCESS)
+	{
+		std::runtime_error("ERROR: Unable to establish a logical device to interface with the physical device\n");
+	}
+
+	vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphicsQueue);
 }

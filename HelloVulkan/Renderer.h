@@ -43,6 +43,8 @@ private:
 	VkInstance m_vkInstance;
 	VkDebugUtilsMessengerEXT callback;
 	VkPhysicalDevice m_physicalDevice;
+	VkDevice m_device;
+	VkQueue m_graphicsQueue;
 
 	const int m_WIDTH = 800;
 	const int m_HEIGHT = 600;
@@ -60,6 +62,7 @@ private:
 	//int RateDevice(VkPhysicalDevice device);
 	bool CheckDeviceCompatability(VkPhysicalDevice device);
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
+	void CreateLogicalDevice();
 };
 
 #endif // !__RENDERER_H__
